@@ -261,12 +261,19 @@
 
   /* ====================== SCÈNE ====================== */
   var canvas = el('scene');
+
+  /* Un téléphone n'a ni survol ni budget GPU d'ordinateur : on adapte le
+     coût du rendu plutôt que d'imposer les mêmes réglages partout. */
+  var isTouch = window.matchMedia('(pointer: coarse)').matches;
+  var isSmall = window.matchMedia('(max-width: 900px)').matches;
+  var light = isTouch || isSmall;
+
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, light ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.06;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !light;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   var scene = new THREE.Scene();
@@ -284,8 +291,8 @@
 
   var key = new THREE.DirectionalLight('#fff4e8', 2.05);
   key.position.set(7, 19, 13);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = !light;
+  key.shadow.mapSize.set(light ? 1024 : 2048, light ? 1024 : 2048);
   key.shadow.camera.near = 1;
   key.shadow.camera.far = 64;
   key.shadow.camera.left = -13;
@@ -365,7 +372,7 @@
 
   /* ---------- poussière lumineuse ---------- */
   (function dust() {
-    var n = 420, p = new Float32Array(n * 3);
+    var n = light ? 170 : 420, p = new Float32Array(n * 3);
     for (var i = 0; i < n; i++) {
       var r = 6 + Math.random() * 20, a = Math.random() * Math.PI * 2;
       p[i * 3] = Math.cos(a) * r;
@@ -800,13 +807,14 @@
      pour qu'il remonte dans la moitié haute, restée visible. */
   function viewBias(dist) {
     if (window.innerWidth > 1080) return 0;
-    return -dist * Math.tan(camera.fov * Math.PI / 360) * 0.34;
+    return -dist * Math.tan(camera.fov * Math.PI / 360) * 0.26;
   }
 
   function applyView(v) {
     lastView = v;
-    camT.az = v.az; camT.pol = v.pol; camT.dist = v.dist;
-    camTargetT.set(v.target[0], v.target[1] + viewBias(v.dist), v.target[2]);
+    var d = window.innerWidth <= 1080 ? v.dist * 1.1 : v.dist;
+    camT.az = v.az; camT.pol = v.pol; camT.dist = d;
+    camTargetT.set(v.target[0], v.target[1] + viewBias(d), v.target[2]);
   }
 
   function shortAngle(from, to) {
@@ -1560,7 +1568,7 @@
 
     updateCamera(k);
 
-    if (!drag && started) setHover(raycastId());
+    if (!isTouch && !drag && started) setHover(raycastId());
     if (hoverId) {
       tooltip.style.left = pointerPx.x + 'px';
       tooltip.style.top = pointerPx.y + 'px';
@@ -1624,6 +1632,12 @@
     setProgress(100, 'Prêt');
     setTimeout(function () { loader.classList.add('done'); }, 360);
   }, 320);
+
+  /* le mode d'emploi doit parler la langue de l'appareil */
+  if (isTouch) {
+    var hint = document.querySelector('.hero-hint');
+    if (hint) hint.textContent = 'Glisse pour tourner · Pince pour zoomer · Touche un muscle';
+  }
 
   el('hero-enter').addEventListener('click', function () {
     el('hero').classList.add('gone');

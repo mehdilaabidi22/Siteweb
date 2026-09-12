@@ -546,15 +546,17 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 }
 
 @media (max-width: 720px) {
-  #topbar { padding: 12px 12px; gap: 8px; }
+  /* env(safe-area-inset-*) : encoche en haut, barre d'accueil en bas */
+  #topbar { padding: calc(12px + env(safe-area-inset-top)) 12px 12px; gap: 8px; }
   /* la marque cede la place aux commandes : sinon l'en-tete deborde */
   .brand { display: none; }
   .topbar-right { gap: 5px; }
   .view-switch { margin-right: 0; }
   .view-switch button { padding: 7px 12px; font-size: 0.66rem; }
   .brand { font-size: 0.88rem; letter-spacing: 0.16em; }
-  #panel-left, #panel-right { max-height: 48vh; bottom: 90px; }
-  #dock { bottom: 14px; gap: 0; padding: 6px; }
+  #panel-left, #panel-right { max-height: 48vh; bottom: calc(90px + env(safe-area-inset-bottom)); }
+  .greeting h1, .greeting p { text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9); }
+  #dock { bottom: calc(14px + env(safe-area-inset-bottom)); gap: 0; padding: 6px; }
   #dock button { padding: 8px 12px; }
   #dock button span { font-size: 0.54rem; }
   #dock .dock-action { width: 44px; height: 44px; }
@@ -562,7 +564,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
   #d-name { font-size: 1.45rem; }
   .metric-row { flex-direction: column; }
   .gen-grid { grid-template-columns: 1fr; }
-  #toast { bottom: 78px; }
+  #toast { bottom: calc(78px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 420px) {
