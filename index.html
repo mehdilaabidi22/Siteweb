@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="description" content="MYOFORGE — atlas musculaire 3D interactif. Explore un corps humain en 3D, entre dans un muscle et construis ta séance.">
+<title>MYOFORGE — Atlas Musculaire 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="anatomy.css">
+</head>
+<body>
+
+<!-- ============================ CHARGEMENT ============================ -->
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-mark">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="ring-bg" cx="50" cy="50" r="42"></circle>
+        <circle class="ring-fg" cx="50" cy="50" r="42"></circle>
+      </svg>
+      <span id="loader-pct">0</span>
+    </div>
+    <h2>MYOFORGE</h2>
+    <p id="loader-step">Initialisation du moteur 3D…</p>
+  </div>
+</div>
+
+<!-- ============================ ACCUEIL ============================ -->
+<div id="hero">
+  <div class="hero-content">
+    <span class="hero-kicker">Atlas anatomique interactif · WebGL</span>
+    <h1>MYO<span>FORGE</span></h1>
+    <p class="hero-sub">
+      Un corps humain en 3D, entièrement explorable. Tourne-le, zoome,
+      <strong>entre dans un muscle</strong> — sa banque d'exercices s'ouvre,
+      et tu composes ta séance.
+    </p>
+    <div class="hero-stats">
+      <div><b>14</b><span>groupes</span></div>
+      <div><b>70</b><span>exercices</span></div>
+      <div><b>360°</b><span>rotation</span></div>
+    </div>
+    <button id="hero-enter" type="button">
+      <span>Entrer dans le corps</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+    </button>
+    <p class="hero-hint">Glisser pour tourner · Molette pour zoomer · Clic sur un muscle</p>
+  </div>
+</div>
+
+<!-- ============================ SCÈNE 3D ============================ -->
+<div id="stage">
+  <canvas id="scene"></canvas>
+  <div id="labels-layer" aria-hidden="true"></div>
+  <div id="tooltip"><b></b><i>cliquer pour entrer</i></div>
+  <div id="vignette" aria-hidden="true"></div>
+</div>
+
+<!-- ============================ EN-TÊTE ============================ -->
+<header id="topbar">
+  <button type="button" id="btn-menu" class="icon-btn" aria-label="Afficher ou masquer les panneaux">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+
+  <div class="brand">MYO<b>FORGE</b></div>
+
+  <div class="topbar-right">
+    <nav class="view-switch" aria-label="Orientation de la vue">
+      <button type="button" data-view="face" class="active">Face</button>
+      <button type="button" data-view="dos">Dos</button>
+      <button type="button" data-view="cote">Côté</button>
+    </nav>
+    <button type="button" id="btn-labels" class="icon-btn" title="Étiquettes des muscles" aria-label="Étiquettes des muscles">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+    </button>
+    <button type="button" id="btn-reset" class="icon-btn" title="Recentrer la caméra" aria-label="Recentrer la caméra">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ============================ COLONNE GAUCHE ============================ -->
+<aside id="panel-left">
+  <div class="scroll-area">
+
+    <div class="greeting">
+      <h1><span id="greeting-time">Bonsoir</span>, Athlète <em>👋</em></h1>
+      <p>Choisis un muscle sur le modèle — ses exercices s'affichent.</p>
+    </div>
+
+    <!-- carte statistique principale -->
+    <section class="card card-hero">
+      <span class="card-label">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-7 3 14 3-9 2 4h4"/></svg>
+        Atlas complet
+      </span>
+      <p class="card-sub">Base d'entraînement</p>
+      <b class="big-number" id="stat-ex">70</b>
+      <p class="card-cap">Exercices indexés</p>
+      <p class="card-delta"><i id="stat-groups">14</i> groupes musculaires couverts</p>
+    </section>
+
+    <!-- filtres rapides -->
+    <p class="section-title">Filtres</p>
+    <div class="chip-row" id="chip-row">
+      <button type="button" class="chip active" data-filter="tous">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>
+        <b>Tous</b><span>14 groupes</span>
+      </button>
+      <button type="button" class="chip" data-filter="haut">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12M8 8v8M16 8v8M4 5h16"/></svg>
+        <b>Haut du corps</b><span>9 groupes</span>
+      </button>
+      <button type="button" class="chip" data-filter="bas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v8l-2 8M15 4v8l2 8M9 4h6"/></svg>
+        <b>Bas du corps</b><span>4 groupes</span>
+      </button>
+      <button type="button" class="chip" data-filter="core">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="10" height="14" rx="3"/><path d="M7 12h10"/></svg>
+        <b>Gainage</b><span>3 groupes</span>
+      </button>
+    </div>
+
+    <!-- index musculaire -->
+    <section class="card">
+      <div class="card-head">
+        <span class="card-label">Index musculaire</span>
+        <div class="region-tabs" role="tablist">
+          <button type="button" data-region="face" class="active" role="tab">Face</button>
+          <button type="button" data-region="dos" role="tab">Dos</button>
+        </div>
+      </div>
+
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+        <input type="search" id="muscle-search" placeholder="Muscle ou exercice…" autocomplete="off">
+      </div>
+
+      <ul id="muscle-list"></ul>
+    </section>
+
+    <!-- morphologie -->
+    <section class="card">
+      <span class="card-label">Morphologie</span>
+      <div class="bulk-head">
+        <p class="card-cap">Développement musculaire</p>
+        <output id="bulk-label">Athlétique</output>
+      </div>
+      <input type="range" id="bulk-slider" min="0" max="100" value="40" step="1" aria-label="Développement musculaire">
+      <div class="bulk-scale"><span>Naturel</span><span>Surdéveloppé</span></div>
+    </section>
+
+  </div>
+</aside>
+
+<!-- ============================ COLONNE DROITE ============================ -->
+<aside id="panel-right">
+  <div class="scroll-area">
+
+    <!-- ---------- vue d'ensemble ---------- -->
+    <div id="overview">
+      <section class="card">
+        <span class="card-label">Données principales</span>
+        <ul class="data-rows" id="ov-rows"></ul>
+      </section>
+
+      <section class="card">
+        <span class="card-label">Répartition par niveau</span>
+        <ul class="zone-bars" id="lvl-bars"></ul>
+      </section>
+
+      <section class="card card-tip">
+        <span class="card-label">Comment explorer</span>
+        <ol class="tips">
+          <li><b>Glisse</b> sur le modèle pour le faire tourner à 360°.</li>
+          <li><b>Clique</b> sur un muscle : la caméra entre dessus et la fiche s'ouvre.</li>
+          <li><b>Ajoute</b> des exercices à ta séance, puis copie-la.</li>
+        </ol>
+      </section>
+    </div>
+
+    <!-- ---------- fiche muscle ---------- -->
+    <div id="detail">
+      <section class="card card-detail">
+        <div class="detail-top">
+          <span class="detail-tag" id="d-region">Face avant</span>
+          <button type="button" id="detail-close" aria-label="Fermer la fiche">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <h2 id="d-name">—</h2>
+        <p class="detail-latin" id="d-latin">—</p>
+        <p class="detail-role" id="d-role">—</p>
+
+        <div class="metric-row">
+          <div><span>Exercices</span><b id="d-count">—</b></div>
+          <div><span>Volume / sem.</span><b id="d-volume">—</b></div>
+        </div>
+
+        <details class="anatomy-fold" open>
+          <summary>Anatomie</summary>
+          <p id="d-anatomy">—</p>
+        </details>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-label">Exercices</span>
+          <button type="button" id="btn-add-all" class="mini-btn">Tout ajouter</button>
+        </div>
+        <ol id="d-exercises" class="ex-rows"></ol>
+      </section>
+
+      <div class="muscle-nav">
+        <button type="button" id="nav-prev">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+          Précédent
+        </button>
+        <button type="button" id="nav-next">
+          Suivant
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ---------- ma séance ---------- -->
+    <div id="session-view">
+      <section class="card card-hero">
+        <span class="card-label">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3v10H4zM17 7h3v10h-3zM7 12h10"/></svg>
+          Ma séance
+        </span>
+        <p class="card-sub">Volume programmé</p>
+        <b class="big-number" id="session-sets">0</b>
+        <p class="card-cap">Séries au total</p>
+        <p class="card-delta"><i id="session-count">0</i> exercices · <i id="session-groups">0</i> groupes</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-label">Contenu</span>
+          <button type="button" id="btn-clear" class="mini-btn">Vider</button>
+        </div>
+        <ul id="session-list" class="session-rows"></ul>
+      </section>
+
+      <section class="card">
+        <span class="card-label">Générateur</span>
+        <p class="card-cap gen-cap">Compose une séance équilibrée automatiquement.</p>
+        <div class="gen-grid" id="gen-grid">
+          <button type="button" data-prog="push">Poussée<span>Pecs · Épaules · Triceps</span></button>
+          <button type="button" data-prog="pull">Tirage<span>Dos · Trapèzes · Biceps</span></button>
+          <button type="button" data-prog="legs">Jambes<span>Quadri · Ischios · Mollets</span></button>
+          <button type="button" data-prog="full">Full body<span>6 groupes majeurs</span></button>
+        </div>
+        <button type="button" id="btn-copy" class="wide-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5h10"/></svg>
+          <span>Copier la séance</span>
+        </button>
+      </section>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ============================ DOCK BAS ============================ -->
+<nav id="dock" aria-label="Navigation principale">
+  <button type="button" data-nav="atlas" class="active">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+    <span>Atlas</span>
+  </button>
+  <button type="button" data-nav="muscle">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V9M10 20V4M15 20v-8M20 20v-5"/></svg>
+    <span>Fiche</span>
+  </button>
+  <button type="button" id="dock-action" data-nav="session" class="dock-action">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3v10H4zM17 7h3v10h-3zM7 12h10"/></svg>
+    <i id="dock-badge" hidden>0</i>
+  </button>
+  <button type="button" data-nav="session">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
+    <span>Séance</span>
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<div id="webgl-error">
+  <div>
+    <h2>WebGL indisponible</h2>
+    <p>Ce navigateur ne peut pas afficher la scène 3D. Active l'accélération matérielle
+       ou ouvre le site dans une version récente de Chrome, Firefox, Edge ou Safari.</p>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="exercises.js"></script>
+<script src="anatomy.js"></script>
+</body>
+</html>
