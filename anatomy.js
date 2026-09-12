@@ -204,60 +204,79 @@
     return m;
   }
 
-  /* ====================== MATÉRIAUX ====================== */
-  var COL_BASE = new THREE.Color('#9aa6b6');   // tissu profond
-  var COL_MUSC = new THREE.Color('#b0bbca');   // muscle au repos
-  var COL_DIM = new THREE.Color('#2b313b');    // muscle estompé
-  var COL_HOT = new THREE.Color('#ffffff');    // muscle actif
+  /* ====================== MATÉRIAU DU CORPS ======================
+     Un seul matériau pour tout le corps. Trois greffes dans le shader :
+       - un liseré de Fresnel, pour l'aspect « scan holographique » ;
+       - la surbrillance du muscle survolé ou ouvert, choisie par sommet
+         grâce à l'attribut aGroupe (aucun découpage en sous-objets) ;
+       - le gonflement musculaire, appliqué le long de la normale, qui
+         donne le curseur « naturel -> surdéveloppé ». */
+  var COL_PEAU = new THREE.Color('#aab5c4');
 
-  /**
-   * Injecte un liseré de Fresnel dans le terme émissif : les bords tournés
-   * vers l'extérieur s'illuminent, ce qui donne l'aspect « scan holographique »
-   * plutôt qu'un plastique mat.
-   */
-  function holo(mat, rim, power, strength) {
-    var c = new THREE.Color(rim);
-    mat.onBeforeCompile = function (sh) {
-      sh.uniforms.uRimC = { value: c };
-      sh.uniforms.uRimP = { value: power };
-      sh.uniforms.uRimS = { value: strength };
-      sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>',
-          '#include <common>\nuniform vec3 uRimC;\nuniform float uRimP;\nuniform float uRimS;')
-        .replace('#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n\tfloat _fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), uRimP);\n\ttotalEmissiveRadiance += uRimC * _fr * uRimS;');
-    };
-    mat.customProgramCacheKey = function () { return 'holo_' + rim + '_' + power + '_' + strength; };
-    return mat;
-  }
+  var uCorps = {
+    uRimC:  { value: new THREE.Color('#bfe8ff') },
+    uRimS:  { value: 0.5 },
+    uSel:   { value: -1 },
+    uHover: { value: -1 },
+    uDim:   { value: 0 },
+    uSelAmt: { value: 0 },
+    uHovAmt: { value: 0 },
+    uActive: { value: new THREE.Color('#ffffff') },
+    uBulk:  { value: 0 }
+  };
 
-  var baseMat = holo(new THREE.MeshStandardMaterial({
-    color: COL_BASE.clone(), roughness: 0.46, metalness: 0.2,
-    emissive: new THREE.Color('#0d1a26'), emissiveIntensity: 0.5
-  }), '#9fd8ff', 2.7, 0.42);
-  baseMat.userData.rest = COL_BASE.clone();
-
-  /* tendons, aponévroses et saillies articulaires : légèrement plus clairs */
-  var boneMat = holo(new THREE.MeshStandardMaterial({
-    color: new THREE.Color('#bcc6d3'), roughness: 0.44, metalness: 0.18,
-    emissive: new THREE.Color('#16283a'), emissiveIntensity: 0.55
-  }), '#cfeaff', 2.4, 0.5);
-
-  /* Un matériau par groupe musculaire, partagé par les deux côtés.
-     Au repos tout le corps reste monochrome : seule la surbrillance colore. */
-  var muscleMat = {};
-  var muscleState = {};
-  MUSCLES.forEach(function (m) {
-    var accent = new THREE.Color(m.color);
-    var rest = COL_MUSC.clone();
-    var mat = holo(new THREE.MeshStandardMaterial({
-      color: rest.clone(), roughness: 0.38, metalness: 0.2,
-      emissive: new THREE.Color('#8fd0ff'), emissiveIntensity: 0.06
-    }), '#bfe8ff', 2.5, 0.55);
-    mat.userData = { rest: rest, hot: COL_HOT.clone().lerp(accent, 0.18), accent: accent };
-    muscleMat[m.id] = mat;
-    muscleState[m.id] = { glow: 0.06, tint: 0, hover: false, sel: false, meshes: [], anchor: new THREE.Vector3() };
+  var bodyMat = new THREE.MeshStandardMaterial({
+    color: COL_PEAU.clone(), roughness: 0.42, metalness: 0.16,
+    emissive: new THREE.Color('#7fc4ff'), emissiveIntensity: 0.05
   });
+
+  bodyMat.onBeforeCompile = function (sh) {
+    Object.keys(uCorps).forEach(function (k) { sh.uniforms[k] = uCorps[k]; });
+
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>',
+        '#include <common>\n' +
+        'attribute float aGroupe;\n' +
+        'attribute float aGonfle;\n' +
+        'varying float vSelW;\n' +
+        'varying float vHovW;\n' +
+        'uniform float uBulk;\n' +
+        'uniform float uSel;\n' +
+        'uniform float uHover;')
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n' +
+        '\tvSelW = 1.0 - step(0.5, abs(aGroupe - uSel));\n' +
+        '\tvHovW = 1.0 - step(0.5, abs(aGroupe - uHover));\n' +
+        '\ttransformed += objectNormal * aGonfle * uBulk;');
+
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>',
+        '#include <common>\n' +
+        'varying float vSelW;\n' +
+        'varying float vHovW;\n' +
+        'uniform vec3 uRimC;\n' +
+        'uniform float uRimS;\n' +
+        'uniform float uDim;\n' +
+        'uniform float uSelAmt;\n' +
+        'uniform float uHovAmt;\n' +
+        'uniform vec3 uActive;')
+      .replace('#include <map_fragment>',
+        '#include <map_fragment>\n' +
+        '\tfloat _sel = vSelW * uSelAmt;\n' +
+        '\tfloat _hov = vHovW * uHovAmt;\n' +
+        '\tfloat _act = max(_sel, _hov * 0.7);\n' +
+        '\tdiffuseColor.rgb *= mix(1.0, 0.22, uDim * (1.0 - _act));\n' +
+        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, uActive, _act * 0.82);')
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n' +
+        '\tfloat _fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.5);\n' +
+        '\tfloat _s2 = vSelW * uSelAmt;\n' +
+        '\tfloat _h2 = vHovW * uHovAmt;\n' +
+        '\tfloat _a2 = max(_s2, _h2 * 0.7);\n' +
+        '\ttotalEmissiveRadiance += uRimC * _fr * uRimS * mix(1.0, 0.25, uDim * (1.0 - _a2));\n' +
+        '\ttotalEmissiveRadiance += uActive * _a2 * 0.42;');
+  };
+  bodyMat.customProgramCacheKey = function () { return 'myo_corps'; };
 
   /* ====================== SCÈNE ====================== */
   var canvas = el('scene');
@@ -387,406 +406,133 @@
     })));
   })();
 
-  /* ====================== CONSTRUCTION DU CORPS ====================== */
-  setProgress(32, 'Sculpture des muscles…');
+  /* ====================== CONSTRUCTION DU CORPS ======================
+     Le corps n'est plus assemblé de primitives : c'est un maillage humain
+     unique (13 380 sommets) chargé depuis mesh.js. Chaque sommet porte
+     l'indice de son groupe musculaire et son amplitude de gonflement, ce
+     qui permet de tout gérer en un seul objet et une seule passe de rendu. */
+  setProgress(34, 'Décodage du maillage…');
+
+  var MESH = window.MYO_MESH;
+  if (!MESH) {
+    loader.classList.add('done');
+    el('hero').classList.add('gone');
+    el('webgl-error').classList.add('show');
+    el('webgl-error').querySelector('h2').textContent = 'Maillage introuvable';
+    el('webgl-error').querySelector('p').textContent =
+      'Le fichier mesh.js n\'a pas pu être chargé. Vérifie qu\'il se trouve bien à côté de index.html.';
+    return;
+  }
+
+  var GROUPES = MESH.groups;              // indice numérique -> identifiant de muscle
+  var IDX_GROUPE = {};
+  GROUPES.forEach(function (g, i) { IDX_GROUPE[g] = i; });
 
   var body = new THREE.Group();
   scene.add(body);
-  var pickables = [];
 
-  /* Enregistre un mesh comme partie interactive d'un groupe musculaire */
-  function muscle(id, mesh, bulk) {
-    mesh.material = muscleMat[id];
-    mesh.userData.mid = id;
-    mesh.userData.bulk = bulk === undefined ? 1 : bulk;
-    mesh.userData.baseScale = mesh.scale.clone();
-    mesh.castShadow = true;
-    muscleState[id].meshes.push(mesh);
-    pickables.push(mesh);
-    return mesh;
-  }
-  function flesh(mesh) {
-    mesh.material = mesh.material || baseMat;
-    mesh.castShadow = true;
-    return mesh;
-  }
+  var bodyGeom, bodyMesh, groupeParSommet, positionsBrutes;
 
-  /* ---------- TRONC ----------
-     Sections elliptiques empilées : thorax large (rx 1.66), taille creusée
-     à 1.18, bassin rouvert. rz ≈ 0.66·rx, la proportion d'une cage réelle. */
-  var trunk = new THREE.Mesh(trunkGeom([
-    { y: 8.05, rx: 1.26, rz: 0.92 },
-    { y: 9.00, rx: 1.27, rz: 0.93 },
-    { y: 9.90, rx: 1.10, rz: 0.85, oz: -0.02 },
-    { y: 10.60, rx: 0.99, rz: 0.79 },
-    { y: 11.10, rx: 0.97, rz: 0.78 },        // taille
-    { y: 11.90, rx: 1.24, rz: 0.93, oz: 0.02 },
-    { y: 12.70, rx: 1.50, rz: 1.05, oz: 0.03 },
-    { y: 13.40, rx: 1.64, rz: 1.11 },        // poitrine
-    { y: 14.05, rx: 1.52, rz: 1.03, oz: -0.04 },
-    { y: 14.60, rx: 1.20, rz: 0.88, oz: -0.08 },
-    { y: 15.20, rx: 0.88, rz: 0.74, oz: -0.08 }
-  ], { square: 0.93 }), baseMat);
-  flesh(trunk);
-  body.add(trunk);
+  (function construireCorps() {
+    var bin = atob(MESH.data);
+    var oct = new Uint8Array(bin.length);
+    for (var b = 0; b < bin.length; b++) oct[b] = bin.charCodeAt(b);
 
-  /* bassin : referme le tronc entre les cuisses */
-  body.add(flesh(blob(baseMat, 0, 8.60, -0.02, 1.17, 1.00, 0.90)));
+    var nv = MESH.verts, nt = MESH.tris;
+    var oPos = 0, oIdx = nv * 6, oGrp = oIdx + nt * 6, oSwl = oGrp + nv;
 
-  /* cou */
-  var neck = flesh(new THREE.Mesh(spindleGeom({
-    len: 1.62, rx: function (t) { return 0.58 - 0.10 * t; }, seg: 12
-  }), baseMat));
-  neck.position.set(0, 14.72, -0.07);
-  body.add(neck);
-  /* sterno-cléido-mastoïdiens : les deux cordes du cou */
-  [-1, 1].forEach(function (s) {
-    var scm = flesh(new THREE.Mesh(spindleGeom({
-      len: 1.35, rx: belly(0.17, 0.5, 0.6), seg: 10
-    }), baseMat));
-    orient(scm, [s * 0.14, 15.00, 0.34], [s * 0.42, 16.30, -0.05]);
-    body.add(scm);
-  });
+    var quant = new Uint16Array(oct.buffer, oPos, nv * 3);
+    var indices = new Uint16Array(oct.buffer, oIdx, nt * 3);
+    groupeParSommet = new Uint8Array(oct.buffer, oGrp, nv);
+    var gonfle = new Uint8Array(oct.buffer, oSwl, nv);
 
-  body.add(flesh(blob(baseMat, 0, A.tete, 0.00, 0.82, 1.06, 0.94)));     // crâne
-  body.add(flesh(blob(baseMat, 0, 16.30, 0.20, 0.58, 0.46, 0.50)));      // mâchoire
-  body.add(flesh(blob(baseMat, 0, 17.26, 0.54, 0.58, 0.24, 0.34)));      // arcade sourcilière
-  body.add(flesh(blob(baseMat, 0, 15.52, -0.44, 0.50, 0.38, 0.34)));     // nuque
-  body.add(flesh(blob(baseMat, 0, 17.50, -0.14, 0.74, 0.66, 0.78)));     // occiput
-
-  /* ---------- PECTORAUX ----------
-     Deux dalles bombées qui affleurent la paroi thoracique : elles ne
-     dépassent que de 0.05 unité, le pectoral fait partie du volume du torse
-     et non d'une boule posée dessus. */
-  [-1, 1].forEach(function (s) {
-    var pec = blob(null, s * 0.72, 13.20, 0.68, 1.00, 0.70, 0.46);
-    pec.rotation.z = -s * 0.20;
-    pec.rotation.y = -s * 0.14;
-    muscle('pectoraux', pec, 0.95);
-    body.add(pec);
-    var clav = blob(null, s * 0.60, 13.86, 0.64, 0.82, 0.30, 0.38);   // faisceau claviculaire
-    clav.rotation.z = -s * 0.46;
-    muscle('pectoraux', clav, 0.85);
-    body.add(clav);
-  });
-
-  /* ---------- CLAVICULES ---------- */
-  [-1, 1].forEach(function (s) {
-    var cl = flesh(new THREE.Mesh(spindleGeom({
-      len: 1.28, rx: belly(0.115, 0.5, 0.72), seg: 8
-    }), boneMat));
-    orient(cl, [s * 0.10, 14.34, 0.46], [s * 1.32, 14.22, 0.10]);
-    body.add(cl);
-  });
-
-  /* ---------- ABDOMINAUX : quatre rangées + arcade basse ---------- */
-  [12.28, 11.72, 11.16, 10.60].forEach(function (y, row) {
-    [-1, 1].forEach(function (s) {
-      var ab = blob(null, s * 0.30, y, 0.76 - row * 0.014,
-                    0.32 - row * 0.012, 0.25, 0.20);
-      muscle('abdominaux', ab, 0.7);
-      body.add(ab);
-    });
-  });
-  [-1, 1].forEach(function (s) {
-    var lo = blob(null, s * 0.27, 10.06, 0.72, 0.27, 0.25, 0.19);
-    muscle('abdominaux', lo, 0.65);
-    body.add(lo);
-  });
-
-  /* ---------- OBLIQUES + DENTELÉ ANTÉRIEUR ----------
-     Les digitations du dentelé, en escalier sous le pectoral, sont la
-     signature d'un torse sec. */
-  [-1, 1].forEach(function (s) {
-    var ob = new THREE.Mesh(spindleGeom({
-      len: 2.15, rx: belly(0.28, 0.55, 0.44), rz: belly(0.42, 0.55, 0.46), seg: 16
-    }), null);
-    ob.position.set(s * 0.76, 10.15, 0.12);
-    ob.rotation.z = s * 0.20;
-    muscle('obliques', ob, 0.75);
-    body.add(ob);
-
-    for (var i = 0; i < 3; i++) {
-      var sl = blob(null, s * (1.00 - i * 0.03), 12.42 - i * 0.40, 0.36 - i * 0.03,
-                    0.26, 0.115, 0.30);
-      sl.rotation.z = s * 0.42;
-      muscle('obliques', sl, 0.6);
-      body.add(sl);
+    // déquantification : les positions sont stockées sur 16 bits par axe
+    var pos = new Float32Array(nv * 3);
+    var mn = MESH.min, sc = MESH.scale;
+    for (var i = 0; i < nv; i++) {
+      pos[i * 3]     = mn[0] + quant[i * 3]     * sc[0];
+      pos[i * 3 + 1] = mn[1] + quant[i * 3 + 1] * sc[1];
+      pos[i * 3 + 2] = mn[2] + quant[i * 3 + 2] * sc[2];
     }
-  });
+    positionsBrutes = pos;
 
-  /* ---------- GRANDS DORSAUX ----------
-     Aile plaquée contre la cage (rz faible), la plus large juste sous
-     l'aisselle : c'est elle qui ouvre le dos. */
-  [-1, 1].forEach(function (s) {
-    var a = [s * 0.50, 10.10, -0.56], b = [s * 1.52, 13.72, -0.32];
-    var lat = new THREE.Mesh(spindleGeom({
-      len: dist3(a, b),
-      rx: belly(0.88, 0.78, 0.22),
-      rz: belly(0.31, 0.74, 0.44),
-      seg: 20
-    }), null);
-    orient(lat, a, b);
-    lat.rotateY(-s * 0.30);
-    muscle('dorsaux', lat, 1.25);
-    body.add(lat);
-    var tm = blob(null, s * 1.30, 13.55, -0.48, 0.48, 0.40, 0.34);   // grand rond
-    muscle('dorsaux', tm, 1.0);
-    body.add(tm);
-  });
+    // attributs propres à l'atlas : groupe et amplitude de gonflement
+    var aGroupe = new Float32Array(nv);
+    var aGonfle = new Float32Array(nv);
+    for (var j = 0; j < nv; j++) {
+      aGroupe[j] = groupeParSommet[j];
+      aGonfle[j] = gonfle[j] / 255 * MESH.swell;
+    }
 
-  /* ---------- TRAPÈZES ---------- */
-  [-1, 1].forEach(function (s) {
-    var a = [s * 0.15, 15.22, -0.20], b = [s * 1.42, 14.48, -0.28];
-    var tr = new THREE.Mesh(spindleGeom({
-      len: dist3(a, b), rx: belly(0.48, 0.45, 0.56), rz: belly(0.38, 0.45, 0.58), seg: 16
-    }), null);
-    orient(tr, a, b);
-    muscle('trapezes', tr, 1.05);
-    body.add(tr);
-    var mid = blob(null, s * 0.48, 13.55, -0.84, 0.44, 0.64, 0.22);   // rhomboïdes
-    mid.rotation.z = s * 0.28;
-    muscle('trapezes', mid, 0.85);
-    body.add(mid);
-  });
+    bodyGeom = new THREE.BufferGeometry();
+    bodyGeom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    bodyGeom.setAttribute('aGroupe', new THREE.BufferAttribute(aGroupe, 1));
+    bodyGeom.setAttribute('aGonfle', new THREE.BufferAttribute(aGonfle, 1));
+    bodyGeom.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+    bodyGeom.computeVertexNormals();
+    bodyGeom.computeBoundingSphere();
 
-  /* ---------- LOMBAIRES ---------- */
-  [-1, 1].forEach(function (s) {
-    var a = [s * 0.30, 9.25, -0.62], b = [s * 0.34, 12.35, -0.74];
-    var lb = new THREE.Mesh(spindleGeom({
-      len: dist3(a, b), rx: belly(0.27, 0.35, 0.62), seg: 16
-    }), null);
-    orient(lb, a, b);
-    muscle('lombaires', lb, 0.8);
-    body.add(lb);
-  });
+    bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
+    bodyMesh.castShadow = !light;
+    bodyMesh.receiveShadow = !light;
+    body.add(bodyMesh);
+  })();
 
-  /* ---------- FESSIERS ---------- */
-  [-1, 1].forEach(function (s) {
-    var gl = blob(null, s * 0.56, 8.72, -0.62, 0.72, 0.74, 0.60);
-    gl.rotation.z = s * 0.10;
-    muscle('fessiers', gl, 1.0);
-    body.add(gl);
-    var med = blob(null, s * 1.06, 9.42, -0.12, 0.40, 0.50, 0.44);   // moyen fessier
-    muscle('fessiers', med, 0.9);
-    body.add(med);
-  });
+  /* Un seul objet : la sélection se résout donc par sommet, pas par mesh. */
+  var pickables = [bodyMesh];
 
-  setProgress(52, 'Sculpture des muscles…');
-
-  /* ---------- BRAS ---------- */
-  var arms = [];
-  [-1, 1].forEach(function (s) {
-    var arm = new THREE.Group();
-    arm.position.set(s * EPAULE_X, A.epaule, 0);
-    arm.rotation.z = -s * 0.135;      // léger écart, bras le long du corps
-    arm.rotation.x = 0.05;
-    arm.userData = { side: s, baseX: s * EPAULE_X, baseRotZ: -s * 0.135 };
-    body.add(arm);
-    arms.push(arm);
-
-    var elbow = -BRAS_L;
-    var wrist = -(BRAS_L + AVBRAS_L);
-
-    /* humérus : comble l'espace entre biceps et triceps */
-    var hum = flesh(new THREE.Mesh(spindleGeom({
-      len: BRAS_L, rx: belly(0.25, 0.5, 0.86), seg: 12
-    }), boneMat));
-    orient(hum, [0, 0, 0], [0, elbow, 0]);
-    arm.add(hum);
-
-    /* DELTOÏDE — trois faisceaux distincts, c'est ce qui donne
-       l'épaule « en boulet de canon » vue de face comme de dos. */
-    var delt = blob(null, s * 0.22, 0.04, -0.02, 0.88, 0.88, 0.82);
-    delt.rotation.z = -s * 0.16;
-    muscle('deltoides', delt, 1.15);
-    arm.add(delt);
-    var deltA = blob(null, s * 0.02, -0.06, 0.32, 0.50, 0.50, 0.46);   // antérieur
-    muscle('deltoides', deltA, 1.05);
-    arm.add(deltA);
-    var deltP = blob(null, s * 0.02, -0.10, -0.36, 0.50, 0.46, 0.44);  // postérieur
-    muscle('deltoides', deltP, 1.05);
-    arm.add(deltP);
-
-    /* BICEPS */
-    var bi = new THREE.Mesh(spindleGeom({
-      len: 2.58, rx: belly(0.56, 0.46, 0.30), rz: belly(0.52, 0.46, 0.34), seg: 18
-    }), null);
-    orient(bi, [0, -0.54, 0.16], [0, -3.12, 0.08]);
-    muscle('biceps', bi, 1.35);
-    arm.add(bi);
-    var peak = blob(null, 0, -1.48, 0.26, 0.33, 0.50, 0.27);   // pic du long chef
-    muscle('biceps', peak, 1.45);
-    arm.add(peak);
-
-    /* TRICEPS */
-    var tri = new THREE.Mesh(spindleGeom({
-      len: 2.98, rx: belly(0.60, 0.40, 0.32), rz: belly(0.54, 0.40, 0.34), seg: 18
-    }), null);
-    orient(tri, [0, -0.32, -0.20], [0, -3.30, -0.06]);
-    muscle('triceps', tri, 1.3);
-    arm.add(tri);
-    var triLat = blob(null, s * 0.28, -1.15, -0.24, 0.26, 0.56, 0.27);   // chef latéral
-    triLat.rotation.z = -s * 0.12;
-    muscle('triceps', triLat, 1.2);
-    arm.add(triLat);
-
-    /* coude */
-    arm.add(flesh(blob(boneMat, 0, elbow, -0.04, 0.30, 0.28, 0.30)));
-
-    /* AVANT-BRAS : épais sous le coude, effilé au poignet */
-    var fa = new THREE.Mesh(spindleGeom({
-      len: AVBRAS_L,
-      rx: function (t) { return 0.58 - 0.28 * Math.pow(t, 0.82) + 0.10 * Math.sin(Math.PI * Math.min(1, t * 2.4)); },
-      seg: 18
-    }), null);
-    orient(fa, [0, elbow - 0.06, 0.02], [0, wrist, -0.05]);
-    muscle('avantbras', fa, 1.1);
-    arm.add(fa);
-    var brach = blob(null, s * 0.27, elbow - 0.58, 0.18, 0.22, 0.46, 0.24);   // long supinateur
-    muscle('avantbras', brach, 1.0);
-    arm.add(brach);
-
-    /* poignet + main */
-    arm.add(flesh(blob(boneMat, 0, wrist, 0, 0.23, 0.18, 0.20)));
-    arm.add(flesh(blob(baseMat, 0, wrist - 0.46, -0.03, 0.29, 0.46, 0.17)));
-  });
-
-  /* ---------- JAMBES ---------- */
-  var legs = [];
-  [-1, 1].forEach(function (s) {
-    var leg = new THREE.Group();
-    leg.position.set(s * HANCHE_X, A.hanche, 0);
-    leg.rotation.z = s * 0.03;
-    leg.userData = { side: s, baseX: s * HANCHE_X };
-    body.add(leg);
-    legs.push(leg);
-
-    var knee = -CUISSE_L;
-    var ankle = -(CUISSE_L + JAMBE_L);
-
-    /* fémur */
-    var fem = flesh(new THREE.Mesh(spindleGeom({
-      len: CUISSE_L, rx: belly(0.40, 0.5, 0.86), seg: 12
-    }), boneMat));
-    orient(fem, [0, 0, 0], [0, knee, 0]);
-    leg.add(fem);
-
-    /* QUADRICEPS : corps principal + vaste latéral + vaste médial */
-    var q = new THREE.Mesh(spindleGeom({
-      len: 3.66, rx: belly(0.90, 0.44, 0.42), rz: belly(0.80, 0.44, 0.46), seg: 20
-    }), null);
-    orient(q, [0, -0.28, 0.16], [0, -3.94, 0.04]);
-    muscle('quadriceps', q, 1.15);
-    leg.add(q);
-    var vl = blob(null, s * 0.48, -1.70, 0.06, 0.32, 0.92, 0.48);
-    vl.rotation.z = -s * 0.06;
-    muscle('quadriceps', vl, 1.1);
-    leg.add(vl);
-    var vm = blob(null, -s * 0.36, -3.35, 0.22, 0.28, 0.54, 0.36);
-    muscle('quadriceps', vm, 1.05);
-    leg.add(vm);
-
-    /* ISCHIO-JAMBIERS */
-    var h = new THREE.Mesh(spindleGeom({
-      len: 3.56, rx: belly(0.74, 0.42, 0.40), rz: belly(0.60, 0.42, 0.44), seg: 18
-    }), null);
-    orient(h, [0, -0.24, -0.26], [0, -3.80, -0.14]);
-    muscle('ischios', h, 1.1);
-    leg.add(h);
-
-    /* genou */
-    leg.add(flesh(blob(boneMat, 0, knee, 0.06, 0.44, 0.40, 0.46)));
-
-    /* tibia */
-    var tib = flesh(new THREE.Mesh(spindleGeom({
-      len: JAMBE_L, rx: function (t) { return 0.30 - 0.09 * t; }, seg: 12
-    }), boneMat));
-    orient(tib, [0, knee, 0.04], [0, ankle, -0.02]);
-    leg.add(tib);
-
-    /* MOLLETS — deux chefs du gastrocnémien, renflés haut, + soléaire */
-    [-1, 1].forEach(function (k) {
-      var a = [k * 0.20, knee - 0.30, -0.22], b = [k * 0.08, knee - 3.05, -0.06];
-      var ca = new THREE.Mesh(spindleGeom({
-        len: dist3(a, b), rx: belly(0.40, 0.25, 0.26), rz: belly(0.35, 0.25, 0.30), seg: 18
-      }), null);
-      orient(ca, a, b);
-      muscle('mollets', ca, 1.3);
-      leg.add(ca);
-    });
-    var sol = new THREE.Mesh(spindleGeom({
-      len: 2.30, rx: belly(0.44, 0.30, 0.44), rz: belly(0.33, 0.30, 0.46), seg: 14
-    }), null);
-    orient(sol, [0, knee - 0.72, -0.12], [0, knee - 3.02, -0.02]);
-    muscle('mollets', sol, 1.15);
-    leg.add(sol);
-
-    /* jambier antérieur : habille la crête du tibia vue de face */
-    var ta = flesh(new THREE.Mesh(spindleGeom({
-      len: 2.60, rx: belly(0.30, 0.32, 0.36), rz: belly(0.26, 0.32, 0.40), seg: 14
-    }), baseMat));
-    orient(ta, [s * 0.14, knee - 0.45, 0.22], [s * 0.05, knee - 3.05, 0.12]);
-    leg.add(ta);
-
-    /* tendon d'Achille, cheville, pied posé au sol */
-    var ach = flesh(new THREE.Mesh(spindleGeom({
-      len: 1.05, rx: belly(0.12, 0.5, 0.8), seg: 8
-    }), boneMat));
-    orient(ach, [0, ankle + 1.05, -0.20], [0, ankle + 0.05, -0.16]);
-    leg.add(ach);
-    leg.add(flesh(blob(boneMat, 0, ankle, -0.02, 0.28, 0.29, 0.29)));
-    var foot = flesh(new THREE.Mesh(spindleGeom({ len: 1.78, rx: function (t) { return 0.34 - 0.12 * t * t; }, rz: function (t) { return 0.30 - 0.14 * t; }, seg: 10 }), baseMat));
-    foot.rotation.x = Math.PI / 2;
-    foot.position.set(0, ankle - 0.62, -0.34);
-    leg.add(foot);
-  });
-
-  setProgress(70, 'Étalonnage des lumières…');
+  setProgress(58, 'Indexation des muscles…');
 
   /* ---------- ancres d'étiquettes et cadrage caméra ----------
-     Le cadrage est déduit de la géométrie : aucune distance n'est écrite en
-     dur, la caméra reste donc juste même si la sculpture change. */
-  var _c = new THREE.Vector3();
+     Chaque groupe est décrit par la boîte englobante de ses propres sommets :
+     aucune distance n'est écrite en dur, le cadrage suit la géométrie. */
+  var muscleState = {};
+  MUSCLES.forEach(function (m) {
+    muscleState[m.id] = {
+      hover: false, sel: false,
+      anchor: new THREE.Vector3(),
+      normal: new THREE.Vector3(0, 0, 1),
+      frame: { center: new THREE.Vector3(), radius: 1 }
+    };
+  });
 
   function computeFrames() {
+    var nv = MESH.verts;
+    var acc = {};
+    GROUPES.forEach(function (g) {
+      acc[g] = { n: 0, sx: 0, sy: 0, sz: 0,
+                 x0: Infinity, y0: Infinity, z0: Infinity,
+                 x1: -Infinity, y1: -Infinity, z1: -Infinity };
+    });
+
+    var p = bodyGeom.attributes.position.array;
+    for (var i = 0; i < nv; i++) {
+      var gi = groupeParSommet[i];
+      if (gi === 255) continue;
+      var a = acc[GROUPES[gi]];
+      if (!a) continue;
+      var x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2];
+      a.n++; a.sx += x; a.sy += y; a.sz += z;
+      if (x < a.x0) a.x0 = x; if (x > a.x1) a.x1 = x;
+      if (y < a.y0) a.y0 = y; if (y > a.y1) a.y1 = y;
+      if (z < a.z0) a.z0 = z; if (z > a.z1) a.z1 = z;
+    }
+
     MUSCLES.forEach(function (m) {
-      var st = muscleState[m.id];
-      var minX = Infinity, minY = Infinity, minZ = Infinity;
-      var maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-      var acc = new THREE.Vector3();
-
-      st.meshes.forEach(function (msh) {
-        msh.updateWorldMatrix(true, false);
-        if (!msh.geometry.boundingSphere) msh.geometry.computeBoundingSphere();
-        var bs = msh.geometry.boundingSphere;
-        _c.copy(bs.center).applyMatrix4(msh.matrixWorld);
-        var sc = Math.max(Math.abs(msh.scale.x), Math.abs(msh.scale.y), Math.abs(msh.scale.z));
-        var r = bs.radius * sc;
-        acc.add(_c);
-        if (_c.x - r < minX) minX = _c.x - r;
-        if (_c.y - r < minY) minY = _c.y - r;
-        if (_c.z - r < minZ) minZ = _c.z - r;
-        if (_c.x + r > maxX) maxX = _c.x + r;
-        if (_c.y + r > maxY) maxY = _c.y + r;
-        if (_c.z + r > maxZ) maxZ = _c.z + r;
-      });
-
-      st.anchor.copy(acc.divideScalar(Math.max(1, st.meshes.length)));
-
+      var a = acc[m.id], st = muscleState[m.id];
+      if (!a || !a.n) return;
+      st.anchor.set(a.sx / a.n, a.sy / a.n, a.sz / a.n);
+      st.frame.center.set((a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2, (a.z0 + a.z1) / 2);
+      st.frame.radius = 0.5 * Math.max(a.x1 - a.x0, a.y1 - a.y0, a.z1 - a.z0);
       // normale sortante approximée depuis l'axe rachidien
-      st.normal = new THREE.Vector3(st.anchor.x, 0, st.anchor.z);
+      st.normal.set(st.anchor.x, 0, st.anchor.z);
       if (st.normal.lengthSq() < 0.01) st.normal.set(0, 0, m.region === 'dos' ? -1 : 1);
       st.normal.normalize();
-
-      // sphère englobante du groupe -> cible et rayon de cadrage
-      st.frame = {
-        center: new THREE.Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2),
-        radius: 0.5 * Math.max(maxX - minX, maxY - minY, maxZ - minZ)
-      };
     });
   }
   computeFrames();
+
+  setProgress(72, 'Étalonnage des lumières…');
 
   /* ====================== CAMÉRA ORBITALE ====================== */
   var VUES = {
@@ -921,7 +667,9 @@
     if (!hasPointer) return null;
     ray.setFromCamera(pointerNDC, camera);
     var hits = ray.intersectObjects(pickables, false);
-    return hits.length ? hits[0].object.userData.mid : null;
+    if (!hits.length || !hits[0].face) return null;
+    var gi = groupeParSommet[hits[0].face.a];
+    return gi === 255 ? null : GROUPES[gi];
   }
 
   function setHover(id) {
@@ -1521,17 +1269,9 @@
     [0.78, 'Bodybuilder'], [1.01, 'Surdéveloppé']
   ];
   function applyBulk(t) {
-    bulkK = 1 + (t - 0.4) * 0.78;
-    pickables.forEach(function (m) {
-      var f = 1 + (bulkK - 1) * m.userData.bulk;
-      m.scale.copy(m.userData.baseScale).multiplyScalar(f);
-    });
-    var spread = bulkK - 1;
-    arms.forEach(function (a) {
-      a.position.x = a.userData.baseX * (1 + spread * 0.34);
-      a.rotation.z = a.userData.baseRotZ - a.userData.side * spread * 0.20;
-    });
-    legs.forEach(function (l) { l.position.x = l.userData.baseX * (1 + spread * 0.22); });
+    // le maillage est cuit au niveau « athletique » : le curseur retire ou
+    // ajoute du volume par rapport a cet etat de reference
+    uCorps.uBulk.value = (t - 0.4) * 2.2;
 
     for (var i = 0; i < PALIERS.length; i++) {
       if (t < PALIERS[i][0]) { el('bulk-label').textContent = PALIERS[i][1]; break; }
@@ -1574,24 +1314,24 @@
       tooltip.style.top = pointerPx.y + 'px';
     }
 
-    // ---- animation des matériaux (monochrome au repos, blanc à l'activation)
+    // ---- surbrillance : deux indices de groupe et trois intensites suffisent
     var dimmed = !!selectedId;
-    MUSCLES.forEach(function (m) {
-      var st = muscleState[m.id];
-      var mat = muscleMat[m.id];
-      var active = st.sel || st.hover || hoverId === m.id;
-      var glowT = st.sel ? 0.95 : (active ? 0.55 : (dimmed ? 0.012 : 0.06));
-      var tintT = st.sel ? 1 : (active ? 0.78 : 0);
-      st.glow += (glowT - st.glow) * k * 0.55;
-      st.tint += (tintT - st.tint) * k * 0.55;
-      mat.emissiveIntensity = st.glow;
-      if (dimmed && !active) {
-        mat.color.lerp(COL_DIM, k * 0.42);
-      } else {
-        mat.color.copy(mat.userData.rest).lerp(mat.userData.hot, st.tint);
-      }
+    var idxSel = selectedId ? IDX_GROUPE[selectedId] : -1;
+    var survol = hoverId || null;
+    Object.keys(muscleState).forEach(function (id) {
+      if (muscleState[id].hover) survol = id;
     });
-    baseMat.color.lerp(dimmed ? COL_DIM : baseMat.userData.rest, k * 0.42);
+    var idxHov = survol ? IDX_GROUPE[survol] : -1;
+
+    if (idxSel >= 0) uCorps.uSel.value = idxSel;
+    if (idxHov >= 0) uCorps.uHover.value = idxHov;
+
+    var kk = k * 0.55;
+    uCorps.uSelAmt.value += ((idxSel >= 0 ? 1 : 0) - uCorps.uSelAmt.value) * kk;
+    uCorps.uHovAmt.value += ((idxHov >= 0 ? 1 : 0) - uCorps.uHovAmt.value) * kk;
+    uCorps.uDim.value += ((dimmed ? 1 : 0) - uCorps.uDim.value) * kk;
+    if (uCorps.uSelAmt.value < 0.01 && idxSel < 0) uCorps.uSel.value = -1;
+    if (uCorps.uHovAmt.value < 0.01 && idxHov < 0) uCorps.uHover.value = -1;
 
     // ---- socle : anneaux qui tournent, halo qui respire
     var t = clock.elapsedTime;
@@ -1605,8 +1345,8 @@
     scan.scale.setScalar(0.55 + 0.5 * Math.sin(Math.PI * Math.min(1, sc)));
 
     // ---- respiration du thorax
-    var br = 1 + 0.009 * Math.sin(t * 0.9);
-    trunk.scale.set(br, 1, br * 1.004);
+    var br = 1 + 0.0045 * Math.sin(t * 0.9);
+    body.scale.set(br, 1, br);
 
     updateLabels();
     renderer.render(scene, camera);

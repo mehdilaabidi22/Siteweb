@@ -117,6 +117,9 @@ input, output { font-family: inherit; }
 #hero-enter:hover { transform: translateY(-3px); box-shadow: 0 22px 54px -14px rgba(255, 255, 255, 0.6); }
 #hero-enter svg { width: 17px; height: 17px; stroke-width: 2.3; }
 .hero-hint { margin-top: 22px; font-size: 0.68rem; letter-spacing: 0.1em; color: var(--txt-3); }
+.hero-legal { margin-top: 10px; font-size: 0.62rem; color: var(--txt-3); }
+.hero-legal a { color: var(--txt-2); text-decoration: underline; text-underline-offset: 2px; }
+.hero-legal a:hover { color: var(--txt); }
 
 /* ======================= EN-TÊTE ======================= */
 #topbar {
