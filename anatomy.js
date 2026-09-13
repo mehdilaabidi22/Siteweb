@@ -9,6 +9,51 @@
 (function () {
   'use strict';
 
+  /* ================= FILET D'ERREUR =================
+     Si quoi que ce soit échoue, l'écran de chargement resterait figé sans
+     rien dire. On affiche la panne : c'est la seule façon de savoir ce qui
+     bloque sur un appareil qu'on n'a pas sous la main. */
+  function panne(titre, detail) {
+    try {
+      var l = document.getElementById('loader');
+      if (l) l.classList.add('done');
+      var h = document.getElementById('hero');
+      if (h) h.classList.add('gone');
+      var box = document.getElementById('webgl-error');
+      if (!box) return;
+      box.querySelector('h2').textContent = titre;
+      var p = box.querySelector('p');
+      p.textContent = detail;
+      var d = document.createElement('p');
+      d.style.cssText = 'margin-top:14px;font-size:0.72rem;opacity:0.6;word-break:break-word';
+      d.textContent = navigator.userAgent;
+      p.parentNode.appendChild(d);
+      box.classList.add('show');
+    } catch (e) { /* on ne peut plus rien faire */ }
+  }
+
+  window.addEventListener('error', function (e) {
+    panne('Une erreur a bloqué le site',
+      (e.message || 'Erreur inconnue') + ' — ' +
+      (e.filename || '').split('/').pop() + ':' + (e.lineno || '?'));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    panne('Une erreur a bloqué le site', String(e.reason && e.reason.message || e.reason));
+  });
+
+  /* Chien de garde : si l'écran de chargement n'a pas disparu, on dit pourquoi. */
+  setTimeout(function () {
+    var l = document.getElementById('loader');
+    if (!l || l.classList.contains('done')) return;
+    var causes = [];
+    if (!window.THREE) causes.push('le moteur 3D (vendor/three.min.js) ne s\'est pas chargé');
+    if (!window.MUSCLES) causes.push('la base d\'exercices (exercises.js) ne s\'est pas chargée');
+    if (!window.MYO_MESH) causes.push('le corps 3D (mesh.js) ne s\'est pas chargé');
+    panne('Le chargement n\'a pas abouti',
+      causes.length ? causes.join(' ; ') + '.'
+                    : 'Tous les fichiers sont là mais l\'affichage 3D n\'a pas démarré.');
+  }, 12000);
+
   var THREE = window.THREE;
 
   /* ====================== ÉCRAN DE CHARGEMENT ====================== */

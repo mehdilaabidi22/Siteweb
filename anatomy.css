@@ -81,7 +81,7 @@ input, output { font-family: inherit; }
   background:
     radial-gradient(ellipse at 50% 118%, rgba(175, 215, 255, 0.11), transparent 58%),
     rgba(10, 10, 12, 0.93);
-  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   transition: opacity 0.9s var(--ease), visibility 0.9s;
 }
 #hero.gone { opacity: 0; visibility: hidden; }
@@ -137,7 +137,7 @@ input, output { font-family: inherit; }
 .icon-btn {
   width: 38px; height: 38px; flex: 0 0 auto;
   display: grid; place-items: center; border-radius: 11px;
-  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(16px);
+  border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   color: var(--txt-2); transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 .icon-btn:hover { color: var(--txt); border-color: var(--line-hi); }
@@ -147,7 +147,7 @@ input, output { font-family: inherit; }
 .view-switch {
   display: flex; gap: 3px; padding: 3px; margin-right: 4px;
   border: 1px solid var(--line); border-radius: 99px;
-  background: var(--glass); backdrop-filter: blur(16px);
+  background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }
 .view-switch button {
   padding: 8px 16px; border-radius: 99px;
@@ -183,7 +183,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 /* ======================= CARTES ======================= */
 .card {
   border: 1px solid var(--line); border-radius: var(--r);
-  background: var(--glass); backdrop-filter: blur(20px);
+  background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   padding: 16px;
   box-shadow: 0 20px 50px -30px rgba(0, 0, 0, 0.9);
 }
@@ -218,7 +218,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 .chip {
   flex: 0 0 auto; min-width: 118px; text-align: left;
   padding: 11px 13px; border-radius: var(--r-sm);
-  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(16px);
+  border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   transition: all 0.25s var(--ease);
 }
 .chip:hover { border-color: var(--line-hi); }
@@ -426,7 +426,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 .muscle-nav button {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--line);
-  background: var(--glass); backdrop-filter: blur(16px);
+  background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   font-size: 0.72rem; font-weight: 600; color: var(--txt-2); transition: all 0.22s;
 }
 .muscle-nav button:hover { color: var(--txt); border-color: var(--line-hi); }
@@ -469,7 +469,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
   position: fixed; z-index: 45; bottom: 20px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px;
   padding: 7px; border-radius: 99px;
-  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(22px);
+  border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
   box-shadow: 0 22px 54px -24px rgba(0, 0, 0, 0.95);
 }
 #dock button {
@@ -499,7 +499,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 #tooltip {
   position: absolute; z-index: 20; top: 0; left: 0;
   padding: 8px 12px; border-radius: 10px;
-  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.94); backdrop-filter: blur(12px);
+  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.94); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   pointer-events: none; opacity: 0; white-space: nowrap;
   transform: translate(-50%, -140%) scale(0.94);
   transition: opacity 0.18s, transform 0.18s var(--ease);
@@ -517,7 +517,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
   position: absolute; transform: translate(-50%, -50%);
   display: flex; align-items: center; gap: 7px;
   padding: 4px 10px; border-radius: 99px;
-  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.8); backdrop-filter: blur(8px);
+  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.8); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   font-size: 0.62rem; font-weight: 500; color: var(--txt);
   white-space: nowrap; opacity: 0; transition: opacity 0.3s;
 }
@@ -527,13 +527,13 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 /* ======================= DÉMONSTRATION VIDÉO ======================= */
 #demo { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; }
 #demo[hidden] { display: none; }
-#demo-back { position: absolute; inset: 0; background: rgba(6, 7, 9, 0.76); backdrop-filter: blur(10px); }
+#demo-back { position: absolute; inset: 0; background: rgba(6, 7, 9, 0.76); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
 .demo-card {
   position: relative; z-index: 1;
   width: min(560px, 100%); max-height: min(88vh, 780px); overflow-y: auto;
   padding: 24px; border-radius: var(--r);
-  border: 1px solid var(--line-hi); background: var(--glass); backdrop-filter: blur(24px);
+  border: 1px solid var(--line-hi); background: var(--glass); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
   box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.95);
   animation: demoIn 0.42s var(--ease);
 }
@@ -590,7 +590,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 #music {
   position: fixed; z-index: 46; left: clamp(12px, 1.6vw, 20px); bottom: 20px;
   width: 248px; border-radius: var(--r-sm); overflow: hidden;
-  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(20px);
+  border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   box-shadow: 0 20px 50px -26px rgba(0, 0, 0, 0.95);
   transition: transform 0.45s var(--ease), opacity 0.35s var(--ease);
 }
@@ -646,7 +646,7 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
   position: fixed; z-index: 60; bottom: 92px; left: 50%;
   transform: translate(-50%, 14px);
   padding: 11px 18px; border-radius: 99px;
-  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.95); backdrop-filter: blur(14px);
+  border: 1px solid var(--line-hi); background: rgba(12, 13, 16, 0.95); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   font-size: 0.76rem; font-weight: 500;
   opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s var(--ease);
 }
