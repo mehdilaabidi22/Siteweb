@@ -80,6 +80,9 @@
       <button type="button" data-view="dos">Dos</button>
       <button type="button" data-view="cote">Côté</button>
     </nav>
+    <button type="button" id="btn-music" class="icon-btn on" title="Bande-son" aria-label="Bande-son" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>
+    </button>
     <button type="button" id="btn-labels" class="icon-btn" title="Étiquettes des muscles" aria-label="Étiquettes des muscles">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
     </button>
@@ -322,6 +325,21 @@
     </div>
   </div>
 </div>
+
+<!-- ============================ BANDE-SON ============================ -->
+<aside id="music" hidden>
+  <div class="music-head">
+    <span class="music-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="music-title">Bande-son</span>
+    <button type="button" id="music-fold" title="Réduire" aria-label="Réduire le lecteur">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
+    <button type="button" id="music-off" title="Couper" aria-label="Couper la bande-son">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="music-frame" id="music-frame"></div>
+</aside>
 
 <div id="toast"></div>
 

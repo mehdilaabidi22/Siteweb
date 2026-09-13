@@ -1000,6 +1000,86 @@
   el('nav-prev').addEventListener('click', function () { step(-1); });
   el('nav-next').addEventListener('click', function () { step(1); });
 
+  /* ====================== BANDE-SON ======================
+     Les navigateurs refusent le son sans geste de l'utilisateur : la lecture
+     démarre donc sur le clic « Entrer dans le corps », qui en est un. Le
+     lecteur YouTube reste visible — ses conditions interdisent de le masquer
+     pour n'en conserver que l'audio. */
+  var MUSIQUE_ID = 'M7xx0WejDV4';
+  var MKEY = 'myoforge.musique';
+  var musique = el('music');
+  var musiqueActive = true;
+  try {
+    if (localStorage.getItem(MKEY) === 'off') musiqueActive = false;
+  } catch (e) { /* mode privé */ }
+
+  function memoriserMusique(v) {
+    try { localStorage.setItem(MKEY, v ? 'on' : 'off'); } catch (e) {}
+  }
+
+  function demarrerMusique() {
+    if (!musiqueActive) return;
+    var cadre = el('music-frame');
+    if (cadre.querySelector('iframe')) return;
+
+    var f = document.createElement('iframe');
+    f.title = 'Bande-son';
+    f.allow = 'autoplay; encrypted-media; picture-in-picture';
+    f.setAttribute('allowfullscreen', '');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + MUSIQUE_ID +
+      '?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1' +
+      '&loop=1&playlist=' + MUSIQUE_ID;
+
+    var charge = false;
+    f.addEventListener('load', function () { charge = true; });
+    cadre.textContent = '';
+    cadre.appendChild(f);
+    musique.hidden = false;
+    musique.classList.add('playing');
+    document.body.classList.add('music-on');
+
+    // si le lecteur est bloqué (politique de sécurité de l'hébergeur),
+    // on propose au moins le lien direct plutôt qu'un cadre noir
+    setTimeout(function () {
+      if (charge || !musiqueActive) return;
+      cadre.textContent = '';
+      var d = document.createElement('div');
+      d.className = 'music-fallback';
+      var a = document.createElement('a');
+      a.href = 'https://youtu.be/' + MUSIQUE_ID;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Ouvrir sur YouTube';
+      d.appendChild(document.createTextNode('Lecteur bloqué ici. '));
+      d.appendChild(a);
+      cadre.appendChild(d);
+      musique.classList.remove('playing');
+    }, 4000);
+  }
+
+  function arreterMusique() {
+    el('music-frame').textContent = '';      // détruire l'iframe coupe le son
+    musique.hidden = true;
+    musique.classList.remove('playing');
+    document.body.classList.remove('music-on');
+  }
+
+  function basculerMusique(actif) {
+    musiqueActive = actif;
+    memoriserMusique(actif);
+    el('btn-music').classList.toggle('on', actif);
+    el('btn-music').setAttribute('aria-pressed', actif ? 'true' : 'false');
+    if (actif) demarrerMusique(); else arreterMusique();
+  }
+
+  el('btn-music').addEventListener('click', function () { basculerMusique(!musiqueActive); });
+  el('music-off').addEventListener('click', function () { basculerMusique(false); });
+  el('music-fold').addEventListener('click', function () {
+    var replie = musique.classList.toggle('fold');
+    document.body.classList.toggle('music-fold', replie);
+  });
+  el('btn-music').classList.toggle('on', musiqueActive);
+
   /* ====================== DÉMONSTRATION VIDÉO ======================
      Aucun identifiant de vidéo n'est écrit en dur : tant qu'un exercice n'en
      porte pas, le bouton ouvre une recherche YouTube sur son nom. Un lien de
@@ -1469,6 +1549,7 @@
   el('hero-enter').addEventListener('click', function () {
     el('hero').classList.add('gone');
     started = true;
+    demarrerMusique();   // ce clic est le geste qui autorise le son
     markActive();
     camT.dist = 32;
     camT.az = 0;
