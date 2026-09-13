@@ -608,6 +608,17 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 .music-head svg { width: 12px; height: 12px; }
 #music.fold #music-fold svg { transform: rotate(180deg); }
 
+/* Tant que le son n'est pas confirmé, on l'annonce au lieu de laisser
+   croire que la musique tourne. */
+#music-son { display: none; }
+#music.muet #music-son { display: grid; color: var(--txt); }
+#music.muet .music-title::after {
+  content: ' · muet'; color: var(--txt-3); font-weight: 500; letter-spacing: 0;
+  text-transform: none;
+}
+#music.muet #music-son { animation: sonPulse 1.6s ease-in-out infinite; }
+@keyframes sonPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
 .music-frame { height: 140px; border-top: 1px solid var(--line); background: #000; }
 .music-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
 .music-frame .music-fallback { padding: 16px; font-size: 0.7rem; line-height: 1.5; color: var(--txt-3); }

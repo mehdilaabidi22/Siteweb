@@ -1001,20 +1001,69 @@
   el('nav-next').addEventListener('click', function () { step(1); });
 
   /* ====================== BANDE-SON ======================
-     Les navigateurs refusent le son sans geste de l'utilisateur : la lecture
-     démarre donc sur le clic « Entrer dans le corps », qui en est un. Le
-     lecteur YouTube reste visible — ses conditions interdisent de le masquer
-     pour n'en conserver que l'audio. */
+     Deux contraintes, pas une seule :
+       1. un navigateur n'autorise le son qu'après un geste de l'utilisateur.
+          La lecture part donc sur le clic « Entrer dans le corps ».
+       2. même après ce geste, YouTube refuse de démarrer une vidéo NON
+          muette en lecture automatique dans un cadre externe. La seule
+          séquence fiable est : démarrer en sourdine (toujours autorisé),
+          puis rétablir le son par commande.
+     Le lecteur reste visible : ses conditions d'utilisation interdisent de
+     le masquer pour n'en garder que l'audio. */
   var MUSIQUE_ID = 'M7xx0WejDV4';
   var MKEY = 'myoforge.musique';
   var musique = el('music');
   var musiqueActive = true;
+  var sonRetabli = false;
   try {
     if (localStorage.getItem(MKEY) === 'off') musiqueActive = false;
-  } catch (e) { /* mode privé */ }
+  } catch (e) { /* navigation privée */ }
 
   function memoriserMusique(v) {
     try { localStorage.setItem(MKEY, v ? 'on' : 'off'); } catch (e) {}
+  }
+
+  /* Commande du lecteur sans charger l'API externe : le paramètre
+     enablejsapi=1 suffit à ce qu'il écoute les messages postés. */
+  function commandeLecteur(func, args) {
+    var f = el('music-frame').querySelector('iframe');
+    if (!f || !f.contentWindow) return;
+    try {
+      f.contentWindow.postMessage(JSON.stringify({
+        event: 'command', func: func, args: args || []
+      }), '*');
+    } catch (e) { /* cadre bloqué par l'hébergeur */ }
+  }
+
+  /* État réel du lecteur. Il ne sert à rien d'afficher « ça joue » sans
+     l'avoir vérifié : le lecteur nous le dit lui-même, on l'écoute. */
+  var etatLecture = false;     // le lecteur joue
+  var etatMuet = true;         // le son est coupé
+  var etatRecu = false;        // le lecteur a répondu au moins une fois
+
+  function majEtatMusique() {
+    musique.classList.toggle('playing', etatLecture && !etatMuet);
+    musique.classList.toggle('muet', etatMuet || !etatRecu);
+    sonRetabli = etatRecu && !etatMuet;
+  }
+
+  window.addEventListener('message', function (e) {
+    if (!/^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(e.origin)) return;
+    var d;
+    try { d = JSON.parse(e.data); } catch (err) { return; }
+    var info = d && d.info;
+    if (!info) return;
+    etatRecu = true;
+    if (typeof info.muted === 'boolean') etatMuet = info.muted;
+    if (typeof info.volume === 'number' && info.volume === 0) etatMuet = true;
+    if (typeof info.playerState === 'number') etatLecture = (info.playerState === 1);
+    majEtatMusique();
+  });
+
+  function retablirSon() {
+    commandeLecteur('unMute');
+    commandeLecteur('setVolume', [65]);
+    commandeLecteur('playVideo');
   }
 
   function demarrerMusique() {
@@ -1026,20 +1075,32 @@
     f.title = 'Bande-son';
     f.allow = 'autoplay; encrypted-media; picture-in-picture';
     f.setAttribute('allowfullscreen', '');
+    // mute=1 : sans lui, le lecteur se charge puis reste en pause
     f.src = 'https://www.youtube-nocookie.com/embed/' + MUSIQUE_ID +
-      '?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1' +
-      '&loop=1&playlist=' + MUSIQUE_ID;
+      '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1' +
+      '&enablejsapi=1&loop=1&playlist=' + MUSIQUE_ID;
 
     var charge = false;
-    f.addEventListener('load', function () { charge = true; });
+    f.addEventListener('load', function () {
+      charge = true;
+      // s'abonner aux états du lecteur, puis tenter le son. Plusieurs essais :
+      // le lecteur n'écoute qu'une fois son initialisation terminée.
+      [200, 700, 1500, 2600].forEach(function (d) {
+        setTimeout(function () {
+          commandeLecteur('listening');
+          retablirSon();
+        }, d);
+      });
+    });
+
     cadre.textContent = '';
     cadre.appendChild(f);
     musique.hidden = false;
-    musique.classList.add('playing');
+    etatLecture = false; etatMuet = true; etatRecu = false;
+    majEtatMusique();   // on part de « muet » tant que rien n'est confirmé
     document.body.classList.add('music-on');
 
-    // si le lecteur est bloqué (politique de sécurité de l'hébergeur),
-    // on propose au moins le lien direct plutôt qu'un cadre noir
+    // si l'hébergeur bloque le cadre, proposer le lien direct
     setTimeout(function () {
       if (charge || !musiqueActive) return;
       cadre.textContent = '';
@@ -1050,18 +1111,19 @@
       a.target = '_blank';
       a.rel = 'noopener';
       a.textContent = 'Ouvrir sur YouTube';
-      d.appendChild(document.createTextNode('Lecteur bloqué ici. '));
+      d.appendChild(document.createTextNode('Lecteur bloqué par cet hébergeur. '));
       d.appendChild(a);
       cadre.appendChild(d);
-      musique.classList.remove('playing');
+      musique.classList.remove('playing', 'muet');
     }, 4000);
   }
 
   function arreterMusique() {
-    el('music-frame').textContent = '';      // détruire l'iframe coupe le son
+    el('music-frame').textContent = '';   // détruire le cadre coupe le son
     musique.hidden = true;
-    musique.classList.remove('playing');
+    musique.classList.remove('playing', 'muet');
     document.body.classList.remove('music-on');
+    sonRetabli = false;
   }
 
   function basculerMusique(actif) {
@@ -1074,11 +1136,19 @@
 
   el('btn-music').addEventListener('click', function () { basculerMusique(!musiqueActive); });
   el('music-off').addEventListener('click', function () { basculerMusique(false); });
+  el('music-son').addEventListener('click', retablirSon);
   el('music-fold').addEventListener('click', function () {
     var replie = musique.classList.toggle('fold');
     document.body.classList.toggle('music-fold', replie);
   });
   el('btn-music').classList.toggle('on', musiqueActive);
+
+  /* Filet de sécurité : si le son n'est toujours pas passé, le premier clic
+     n'importe où dans la page sert de geste pour le rétablir. */
+  document.addEventListener('click', function reessayerSon() {
+    if (!musiqueActive || sonRetabli) return;
+    if (el('music-frame').querySelector('iframe')) retablirSon();
+  });
 
   /* ====================== DÉMONSTRATION VIDÉO ======================
      Aucun identifiant de vidéo n'est écrit en dur : tant qu'un exercice n'en
