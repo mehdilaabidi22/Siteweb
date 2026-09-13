@@ -293,6 +293,36 @@
   </button>
 </nav>
 
+<!-- ============================ DÉMONSTRATION VIDÉO ============================ -->
+<div id="demo" role="dialog" aria-modal="true" aria-labelledby="demo-name" hidden>
+  <div id="demo-back"></div>
+  <div class="demo-card">
+    <button type="button" id="demo-close" aria-label="Fermer la démonstration">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+
+    <span class="demo-tag" id="demo-muscle">—</span>
+    <h2 id="demo-name">—</h2>
+
+    <div class="demo-chips" id="demo-chips"></div>
+
+    <div class="demo-stage" id="demo-stage"></div>
+
+    <div class="demo-cue">
+      <h4>Point technique</h4>
+      <p id="demo-cue">—</p>
+    </div>
+
+    <div class="demo-actions">
+      <a id="demo-yt" class="wide-btn" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM10 9.5l5 2.5-5 2.5z"/></svg>
+        <span>Voir la démonstration sur YouTube</span>
+      </a>
+      <button type="button" id="demo-add" class="mini-btn wide">Ajouter à ma séance</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <div id="webgl-error">

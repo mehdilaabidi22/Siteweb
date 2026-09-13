@@ -18,7 +18,12 @@
                du muscle (voir computeFrames dans anatomy.js) : les champs
                target/dist ci-dessous ne servent plus qu'à documenter
                l'intention de cadrage d'origine.
-     exercises [{ name, sets, level, gear, cue }]
+     exercises [{ name, sets, level, gear, cue, video? }]
+               video : identifiant YouTube de la demonstration, optionnel.
+               Renseigne -> le lecteur s'affiche directement dans la fiche.
+               Absent   -> le bouton ouvre une recherche YouTube sur le nom
+               de l'exercice. Aucun identifiant n'est inscrit d'office :
+               mieux vaut un lien de recherche qui marche qu'une video morte.
    ======================================================================= */
 
 const MUSCLES = [

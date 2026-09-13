@@ -222,7 +222,8 @@
     uSelAmt: { value: 0 },
     uHovAmt: { value: 0 },
     uActive: { value: new THREE.Color('#ffffff') },
-    uBulk:  { value: 0 }
+    uBulk:  { value: 0 },
+    uPulse: { value: 0 }
   };
 
   var bodyMat = new THREE.MeshStandardMaterial({
@@ -241,13 +242,14 @@
         'varying float vSelW;\n' +
         'varying float vHovW;\n' +
         'uniform float uBulk;\n' +
+        'uniform float uPulse;\n' +
         'uniform float uSel;\n' +
         'uniform float uHover;')
       .replace('#include <begin_vertex>',
         '#include <begin_vertex>\n' +
         '\tvSelW = 1.0 - step(0.5, abs(aGroupe - uSel));\n' +
         '\tvHovW = 1.0 - step(0.5, abs(aGroupe - uHover));\n' +
-        '\ttransformed += objectNormal * aGonfle * uBulk;');
+        '\ttransformed += objectNormal * aGonfle * (uBulk + vSelW * uPulse);');
 
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>',
@@ -659,6 +661,7 @@
   canvas.addEventListener('touchend', function () { pinch = 0; });
 
   /* ====================== SÉLECTION / SURVOL ====================== */
+  var demoActif = false;
   var ray = new THREE.Raycaster();
   var hoverId = null, selectedId = null;
   var tooltip = el('tooltip');
@@ -940,6 +943,13 @@
         else addExercise(m.id, ex);
       });
 
+      var demoBtn = document.createElement('button');
+      demoBtn.type = 'button';
+      demoBtn.className = 'ex-demo';
+      demoBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg> Démo';
+      demoBtn.addEventListener('click', function () { ouvrirDemo(m, ex); });
+      main.appendChild(demoBtn);
+
       li.appendChild(idx); li.appendChild(main); li.appendChild(add);
       ol.appendChild(li);
     });
@@ -989,6 +999,78 @@
   }
   el('nav-prev').addEventListener('click', function () { step(-1); });
   el('nav-next').addEventListener('click', function () { step(1); });
+
+  /* ====================== DÉMONSTRATION VIDÉO ======================
+     Aucun identifiant de vidéo n'est écrit en dur : tant qu'un exercice n'en
+     porte pas, le bouton ouvre une recherche YouTube sur son nom. Un lien de
+     recherche qui aboutit vaut mieux qu'un lecteur vide. */
+  var demo = el('demo');
+  var demoExo = null, demoMuscle = null;
+
+  function rechercheYouTube(nom) {
+    return 'https://www.youtube.com/results?search_query=' +
+      encodeURIComponent(nom + ' technique musculation');
+  }
+
+  function ouvrirDemo(m, ex) {
+    demoExo = ex; demoMuscle = m;
+    el('demo-muscle').textContent = m.name;
+    el('demo-name').textContent = ex.name;
+    el('demo-cue').textContent = ex.cue;
+    el('demo-yt').href = rechercheYouTube(ex.name);
+
+    var chips = el('demo-chips');
+    chips.textContent = '';
+    [ex.sets, ex.level, ex.gear].forEach(function (t) {
+      var sp = document.createElement('span');
+      sp.textContent = t;
+      chips.appendChild(sp);
+    });
+
+    var stage = el('demo-stage');
+    stage.textContent = '';
+    if (ex.video) {
+      var f = document.createElement('iframe');
+      f.src = 'https://www.youtube-nocookie.com/embed/' + ex.video + '?rel=0';
+      f.allow = 'accelerometer; encrypted-media; gyroscope; picture-in-picture';
+      f.allowFullscreen = true;
+      f.title = 'Démonstration : ' + ex.name;
+      stage.appendChild(f);
+    } else {
+      var d = document.createElement('div');
+      d.className = 'demo-hint';
+      d.innerHTML = '<b>Démonstration</b>Aucune vidéo n\'est encore rattachée à cet ' +
+        'exercice. Le bouton ci-dessous ouvre une recherche YouTube sur son nom.';
+      stage.appendChild(d);
+    }
+
+    el('demo-add').textContent = inSession(m.id, ex.name)
+      ? 'Retirer de ma séance' : 'Ajouter à ma séance';
+
+    demo.hidden = false;
+    demoActif = true;
+    el('demo-close').focus();
+  }
+
+  function fermerDemo() {
+    demo.hidden = true;
+    demoActif = false;
+    el('demo-stage').textContent = '';   // coupe le lecteur
+    demoExo = null;
+  }
+
+  el('demo-close').addEventListener('click', fermerDemo);
+  el('demo-back').addEventListener('click', fermerDemo);
+  el('demo-add').addEventListener('click', function () {
+    if (!demoExo || !demoMuscle) return;
+    if (inSession(demoMuscle.id, demoExo.name)) {
+      removeExercise(demoMuscle.id, demoExo.name);
+      this.textContent = 'Ajouter à ma séance';
+    } else {
+      addExercise(demoMuscle.id, demoExo);
+      this.textContent = 'Retirer de ma séance';
+    }
+  });
 
   /* ====================== ONGLETS ====================== */
   function showTab(tab) {
@@ -1219,7 +1301,8 @@
 
   el('detail-close').addEventListener('click', deselect);
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && selectedId) deselect();
+    if (e.key === 'Escape' && demoActif) fermerDemo();
+    else if (e.key === 'Escape' && selectedId) deselect();
     else if (e.key === 'ArrowRight' && selectedId) step(1);
     else if (e.key === 'ArrowLeft' && selectedId) step(-1);
   });
@@ -1330,6 +1413,10 @@
     uCorps.uSelAmt.value += ((idxSel >= 0 ? 1 : 0) - uCorps.uSelAmt.value) * kk;
     uCorps.uHovAmt.value += ((idxHov >= 0 ? 1 : 0) - uCorps.uHovAmt.value) * kk;
     uCorps.uDim.value += ((dimmed ? 1 : 0) - uCorps.uDim.value) * kk;
+
+    // pendant la demonstration, le muscle travaille : il se contracte
+    var pulseT = demoActif ? 0.55 + 0.45 * Math.sin(clock.elapsedTime * 2.4) : 0;
+    uCorps.uPulse.value += (pulseT * 0.5 - uCorps.uPulse.value) * k * 0.4;
     if (uCorps.uSelAmt.value < 0.01 && idxSel < 0) uCorps.uSel.value = -1;
     if (uCorps.uHovAmt.value < 0.01 && idxHov < 0) uCorps.uHover.value = -1;
 
