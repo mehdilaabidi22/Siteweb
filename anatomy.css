@@ -165,9 +165,6 @@ input, output { font-family: inherit; }
 #panel-left { left: clamp(12px, 1.6vw, 20px); width: var(--pl); }
 #panel-right { right: clamp(12px, 1.6vw, 20px); width: var(--pr); }
 body.panels-off #panel-left { transform: translateX(calc(-100% - 26px)); opacity: 0; }
-/* le lecteur se loge sous la colonne gauche : elle lui cede la place */
-body.music-on #panel-left { bottom: 216px; }
-body.music-on.music-fold #panel-left { bottom: 76px; }
 body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity: 0; }
 
 .scroll-area {
@@ -585,61 +582,10 @@ body.panels-off #panel-right { transform: translateX(calc(100% + 26px)); opacity
 }
 
 /* ======================= BANDE-SON =======================
-   Le lecteur YouTube reste visible : ses conditions d'utilisation
-   interdisent de le masquer pour n'en garder que le son. */
-#music {
-  position: fixed; z-index: 46; left: clamp(12px, 1.6vw, 20px); bottom: 20px;
-  width: 248px; border-radius: var(--r-sm); overflow: hidden;
-  border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  box-shadow: 0 20px 50px -26px rgba(0, 0, 0, 0.95);
-  transition: transform 0.45s var(--ease), opacity 0.35s var(--ease);
-}
-#music[hidden] { display: none; }
-.music-head { display: flex; align-items: center; gap: 8px; padding: 9px 8px 9px 11px; }
-.music-title {
-  flex: 1; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--txt-2);
-}
-.music-head button {
-  width: 22px; height: 22px; flex: 0 0 auto; border-radius: 6px;
-  display: grid; place-items: center; color: var(--txt-3); transition: color 0.2s;
-}
-.music-head button:hover { color: var(--txt); }
-.music-head svg { width: 12px; height: 12px; }
-#music.fold #music-fold svg { transform: rotate(180deg); }
-
-/* Tant que le son n'est pas confirmé, on l'annonce au lieu de laisser
-   croire que la musique tourne. */
-#music-son { display: none; }
-#music.muet #music-son { display: grid; color: var(--txt); }
-#music.muet .music-title::after {
-  content: ' · muet'; color: var(--txt-3); font-weight: 500; letter-spacing: 0;
-  text-transform: none;
-}
-#music.muet #music-son { animation: sonPulse 1.6s ease-in-out infinite; }
-@keyframes sonPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-
-.music-frame { height: 140px; border-top: 1px solid var(--line); background: #000; }
-.music-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
-.music-frame .music-fallback { padding: 16px; font-size: 0.7rem; line-height: 1.5; color: var(--txt-3); }
-.music-frame .music-fallback a { color: var(--txt-2); }
-#music.fold .music-frame { height: 0; border-top: 0; }
-
-/* egaliseur : signale que le son tourne meme lecteur replie */
-.music-eq { display: flex; align-items: flex-end; gap: 2px; height: 13px; }
-.music-eq i { width: 2px; background: var(--txt-2); border-radius: 1px; height: 30%; }
-#music.playing .music-eq i { animation: eq 0.9s ease-in-out infinite; }
-#music.playing .music-eq i:nth-child(2) { animation-delay: 0.15s; }
-#music.playing .music-eq i:nth-child(3) { animation-delay: 0.3s; }
-#music.playing .music-eq i:nth-child(4) { animation-delay: 0.45s; }
-@keyframes eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
-
-@media (max-width: 1080px) {
-  /* sur mobile les panneaux occupent le bas : le lecteur remonte sous l'en-tete */
-  #music { bottom: auto; top: 66px; left: 12px; width: 200px; }
-  .music-frame { height: 112px; }
-}
-@media (max-width: 420px) { #music { width: 168px; } .music-frame { height: 94px; } }
+   Aucun lecteur visible : la piste est jouée par un élément <audio> sans
+   contrôles. Seul subsiste le coupe-son de l'en-tête, et il reste masqué
+   tant qu'aucune piste n'a pu être chargée. */
+#theme { display: none; }
 
 /* ======================= TOAST ======================= */
 #toast {
