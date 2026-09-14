@@ -256,24 +256,31 @@
          grâce à l'attribut aGroupe (aucun découpage en sous-objets) ;
        - le gonflement musculaire, appliqué le long de la normale, qui
          donne le curseur « naturel -> surdéveloppé ». */
-  var COL_PEAU = new THREE.Color('#aab5c4');
+  var COL_PEAU = new THREE.Color('#7c8798');
 
   var uCorps = {
     uRimC:  { value: new THREE.Color('#bfe8ff') },
-    uRimS:  { value: 0.5 },
+    uRimS:  { value: 0.3 },
     uSel:   { value: -1 },
     uHover: { value: -1 },
     uDim:   { value: 0 },
     uSelAmt: { value: 0 },
     uHovAmt: { value: 0 },
-    uActive: { value: new THREE.Color('#ffffff') },
+    uActive: { value: new THREE.Color('#cfe6ff') },
     uBulk:  { value: 0 },
-    uPulse: { value: 0 }
+    uPulse: { value: 0 },
+    uReveal: { value: 0 }
   };
 
-  var bodyMat = new THREE.MeshStandardMaterial({
-    color: COL_PEAU.clone(), roughness: 0.42, metalness: 0.16,
-    emissive: new THREE.Color('#7fc4ff'), emissiveIntensity: 0.05
+  /* MeshPhysicalMaterial + vernis : le vernis ajoute une seconde couche
+     spéculaire par-dessus la diffuse. C'est lui qui fait lire la surface
+     comme une sculpture polie et non comme du plastique mat. */
+  var bodyMat = new THREE.MeshPhysicalMaterial({
+    color: COL_PEAU.clone(), roughness: 0.38, metalness: 0.05,
+    clearcoat: 0.6, clearcoatRoughness: 0.34,
+    sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color('#8fbcff'),
+    envMapIntensity: 0.8,
+    emissive: new THREE.Color('#7fc4ff'), emissiveIntensity: 0.04
   });
 
   bodyMat.onBeforeCompile = function (sh) {
@@ -289,18 +296,22 @@
         'uniform float uBulk;\n' +
         'uniform float uPulse;\n' +
         'uniform float uSel;\n' +
-        'uniform float uHover;')
+        'uniform float uHover;\n' +
+        'varying float vHauteur;')
       .replace('#include <begin_vertex>',
         '#include <begin_vertex>\n' +
         '\tvSelW = 1.0 - step(0.5, abs(aGroupe - uSel));\n' +
         '\tvHovW = 1.0 - step(0.5, abs(aGroupe - uHover));\n' +
-        '\ttransformed += objectNormal * aGonfle * (uBulk + vSelW * uPulse);');
+        '\ttransformed += objectNormal * aGonfle * (uBulk + vSelW * uPulse);\n' +
+        '\tvHauteur = (modelMatrix * vec4(transformed, 1.0)).y;');
 
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>',
         '#include <common>\n' +
         'varying float vSelW;\n' +
         'varying float vHovW;\n' +
+        'varying float vHauteur;\n' +
+        'uniform float uReveal;\n' +
         'uniform vec3 uRimC;\n' +
         'uniform float uRimS;\n' +
         'uniform float uDim;\n' +
@@ -309,11 +320,12 @@
         'uniform vec3 uActive;')
       .replace('#include <map_fragment>',
         '#include <map_fragment>\n' +
+        '\tif (abs(vHauteur) > uReveal) discard;\n' +
         '\tfloat _sel = vSelW * uSelAmt;\n' +
         '\tfloat _hov = vHovW * uHovAmt;\n' +
         '\tfloat _act = max(_sel, _hov * 0.7);\n' +
         '\tdiffuseColor.rgb *= mix(1.0, 0.22, uDim * (1.0 - _act));\n' +
-        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, uActive, _act * 0.82);')
+        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, uActive, _act * 0.55);')
       .replace('#include <emissivemap_fragment>',
         '#include <emissivemap_fragment>\n' +
         '\tfloat _fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.5);\n' +
@@ -321,7 +333,9 @@
         '\tfloat _h2 = vHovW * uHovAmt;\n' +
         '\tfloat _a2 = max(_s2, _h2 * 0.7);\n' +
         '\ttotalEmissiveRadiance += uRimC * _fr * uRimS * mix(1.0, 0.25, uDim * (1.0 - _a2));\n' +
-        '\ttotalEmissiveRadiance += uActive * _a2 * 0.42;');
+        '\ttotalEmissiveRadiance += uActive * _a2 * 0.16;\n' +
+        '\tfloat _bord = 1.0 - smoothstep(0.0, 0.55, uReveal - abs(vHauteur));\n' +
+        '\ttotalEmissiveRadiance += uRimC * _bord * 2.2;');
   };
   bodyMat.customProgramCacheKey = function () { return 'myo_corps'; };
 
@@ -338,7 +352,7 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, light ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.06;
+  renderer.toneMappingExposure = 0.94;
   renderer.shadowMap.enabled = !light;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -351,11 +365,11 @@
   setProgress(14, 'Génération du squelette…');
 
   /* ---------- lumières : éclairage de studio ---------- */
-  scene.add(new THREE.AmbientLight('#4a5570', 0.42));
-  var hemi = new THREE.HemisphereLight('#7d8ab0', '#0b0a0e', 0.5);
+  scene.add(new THREE.AmbientLight('#4a5570', 0.14));
+  var hemi = new THREE.HemisphereLight('#7d8ab0', '#0b0a0e', 0.2);
   scene.add(hemi);
 
-  var key = new THREE.DirectionalLight('#fff4e8', 2.05);
+  var key = new THREE.DirectionalLight('#fff4e8', 1.25);
   key.position.set(7, 19, 13);
   key.castShadow = !light;
   key.shadow.mapSize.set(light ? 1024 : 2048, light ? 1024 : 2048);
@@ -369,30 +383,66 @@
   key.shadow.normalBias = 0.03;
   scene.add(key);
 
-  var fill = new THREE.DirectionalLight('#9dc0ff', 0.5);
+  var fill = new THREE.DirectionalLight('#9dc0ff', 0.26);
   fill.position.set(-9, 8, 11);
   scene.add(fill);
 
-  var rimL = new THREE.PointLight('#00d9ff', 190, 44, 2);
+  var rimL = new THREE.PointLight('#7fd4ff', 95, 44, 2);
   rimL.position.set(-10.5, 13, -7.5);
   scene.add(rimL);
 
-  var rimR = new THREE.PointLight('#ff2e63', 165, 44, 2);
+  var rimR = new THREE.PointLight('#ff7a9c', 70, 44, 2);
   rimR.position.set(10.5, 11, -8);
   scene.add(rimR);
 
-  var topSpot = new THREE.SpotLight('#ffffff', 330, 42, 0.78, 0.9, 2);
+  var topSpot = new THREE.SpotLight('#ffffff', 200, 42, 0.78, 0.9, 2);
   topSpot.position.set(0, 29, 6);
   topSpot.target.position.set(0, 10, 0);
   scene.add(topSpot, topSpot.target);
 
   /* ---------- sol + socle holographique ---------- */
+  /* Carte d'environnement calculée depuis une petite scène de studio : c'est
+     elle qui donne au corps de vraies réflexions, donc la sensation de
+     matière. Sans elle, aucun réglage de matériau ne suffit. */
+  (function environnement() {
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    var studio = new THREE.Scene();
+    function panneau(coul, intens, x, y, z, sx, sy) {
+      var m = new THREE.Mesh(
+        new THREE.PlaneGeometry(sx, sy),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(coul).multiplyScalar(intens) })
+      );
+      m.position.set(x, y, z);
+      m.lookAt(0, 0, 0);
+      studio.add(m);
+    }
+    studio.add(new THREE.Mesh(
+      new THREE.SphereGeometry(40, 16, 12),
+      new THREE.MeshBasicMaterial({ color: '#05070c', side: THREE.BackSide })
+    ));
+    panneau('#ffffff', 1.45, 0, 16, 10, 26, 16);    // clé, au-dessus et devant
+    panneau('#a9d8ff', 0.85, -18, 6, -8, 22, 22);   // contre-jour froid
+    panneau('#ffd9c4', 0.5, 18, 4, -10, 18, 18);   // contre-jour chaud
+    panneau('#4f7fbf', 0.22, 0, -14, 0, 30, 30);    // rebond du sol
+    var cible = pmrem.fromScene(studio, 0.05);
+    scene.environment = cible.texture;
+    pmrem.dispose();
+    studio.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+  })();
+
   var floor = new THREE.Mesh(
     new THREE.CircleGeometry(34, 80),
-    new THREE.MeshStandardMaterial({ color: '#080a0d', roughness: 0.3, metalness: 0.85 })
+    new THREE.MeshPhysicalMaterial({
+      color: '#06080b', roughness: 0.16, metalness: 0.9,
+      transparent: true, opacity: 0.88, envMapIntensity: 0.7
+    })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
+  floor.renderOrder = 2;        // après le reflet, pour le fondre dans le sol
   scene.add(floor);
 
   /* anneaux concentriques : le « socle de scan » sur lequel le sujet se tient */
@@ -523,6 +573,19 @@
     bodyMesh.castShadow = !light;
     bodyMesh.receiveShadow = !light;
     body.add(bodyMesh);
+
+    /* Reflet : la même géométrie retournée sous le sol, que le plancher
+       semi-transparent estompe. Inverser l'échelle inverse aussi le sens des
+       faces, d'où le rendu sur la face arrière. */
+    if (!light) {
+      var matMiroir = bodyMat.clone();
+      matMiroir.side = THREE.BackSide;
+      matMiroir.envMapIntensity = 0.5;
+      var miroir = new THREE.Mesh(bodyGeom, matMiroir);
+      miroir.scale.y = -1;
+      miroir.renderOrder = 1;
+      body.add(miroir);
+    }
   })();
 
   /* Un seul objet : la sélection se résout donc par sommet, pas par mesh. */
@@ -1514,6 +1577,9 @@
 
   var clock = new THREE.Clock();
   var started = false;
+  var HAUT_CORPS = 22;          // au-delà du sommet du crâne
+  var DUREE_REVEAL = 1900;      // ms
+  var debutReveal = 0;          // 0 = pas d'animation en cours
 
   function frame() {
     requestAnimationFrame(frame);
@@ -1567,6 +1633,14 @@
     scan.material.opacity = sc < 1 ? 0.13 * Math.sin(Math.PI * sc) : 0;
     scan.scale.setScalar(0.55 + 0.5 * Math.sin(Math.PI * Math.min(1, sc)));
 
+    // ---- révélation : le corps se matérialise du sol vers la tête
+    if (debutReveal) {
+      var av = (performance.now() - debutReveal) / DUREE_REVEAL;
+      if (av >= 1) { av = 1; debutReveal = 0; }
+      // départ franc, arrivée douce : la montée se pose au lieu de s'arrêter net
+      uCorps.uReveal.value = (1 - Math.pow(1 - av, 3)) * HAUT_CORPS;
+    }
+
     // ---- respiration du thorax
     var br = 1 + 0.0045 * Math.sin(t * 0.9);
     body.scale.set(br, 1, br);
@@ -1584,6 +1658,7 @@
   syncChips();
   syncViewButtons();
   applyBulk(+bulkSlider.value / 100);
+  uCorps.uReveal.value = HAUT_CORPS;
   applyView(VUES.face);
   updateCamera(1);
   renderer.render(scene, camera);   // compile les shaders avant l'apparition
@@ -1605,6 +1680,8 @@
   el('hero-enter').addEventListener('click', function () {
     el('hero').classList.add('gone');
     started = true;
+    debutReveal = performance.now();  // le corps se reconstruit à l'entrée
+    uCorps.uReveal.value = 0;
     demarrerMusique();   // ce clic est le geste qui autorise le son
     markActive();
     camT.dist = 32;
