@@ -1,0 +1,10 @@
+# La bande-son n'est pas versionnée : ce dépôt est public, et redistribuer
+# un enregistrement commercial y serait une contrefaçon. Voir audio/LISEZMOI.md
+audio/*.mp3
+audio/*.m4a
+audio/*.ogg
+audio/*.wav
+
+# Dépendances et fichiers système
+node_modules/
+.DS_Store
