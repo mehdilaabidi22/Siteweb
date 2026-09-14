@@ -1115,7 +1115,7 @@
      lecture part donc sur le clic « Entrer dans le corps ».
      Le fichier audio/theme.mp3 n'est pas versionné (voir audio/LISEZMOI.md) :
      s'il est absent, tout se passe en silence, sans erreur ni bouton. */
-  var MKEY = 'myoforge.musique';
+  var MKEY = 'myoforge.son.v2';
   var theme = el('theme');
   var btnMusique = el('btn-music');
   var pisteDispo = false;
@@ -1133,6 +1133,23 @@
     pisteDispo = true;
     btnMusique.hidden = false;
     majBoutonMusique();
+  }
+
+  /* Diagnostic : sans lui, « pas de son » recouvre trois causes très
+     différentes — fichier absent, fichier mal nommé, son coupé par
+     préférence — et rien à l'écran ne permet de les distinguer. */
+  function diagnostiquerSon() {
+    if (!musiqueActive) {
+      btnMusique.hidden = false;           // toujours de quoi le rallumer
+      majBoutonMusique();
+      toast('Bande-son coupée — clique sur ♪ en haut à droite');
+      return;
+    }
+    if (!pisteDispo) {
+      toast('Bande-son introuvable : place ton fichier dans audio/theme.mp3');
+      return;
+    }
+    if (theme.paused) toast('Clique n\'importe où pour lancer la musique');
   }
   ['loadeddata', 'canplay', 'playing'].forEach(function (ev) {
     theme.addEventListener(ev, verifierPiste);
@@ -1683,6 +1700,7 @@
     debutReveal = performance.now();  // le corps se reconstruit à l'entrée
     uCorps.uReveal.value = 0;
     demarrerMusique();   // ce clic est le geste qui autorise le son
+    setTimeout(diagnostiquerSon, 1500);
     markActive();
     camT.dist = 32;
     camT.az = 0;
